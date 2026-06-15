@@ -194,10 +194,13 @@ function init() {
     scene.add(world);
 
     // Ambient + directional light
-    scene.add(new THREE.AmbientLight(0x404060, 0.8));
-    var dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+    scene.add(new THREE.AmbientLight(0x6080B0, 1.6));
+    var dirLight = new THREE.DirectionalLight(0xffffff, 1.1);
     dirLight.position.set(5, 3, 5);
     scene.add(dirLight);
+    var fillLight = new THREE.DirectionalLight(0x223366, 0.5);
+    fillLight.position.set(-5, -2, -3);
+    scene.add(fillLight);
 
     // Globe sphere
     var globeGeo = new THREE.SphereGeometry(1, 64, 64);
@@ -485,6 +488,15 @@ function updateGlobe(json) {
     }
 }
 
+var MIN_ZOOM = 2.5, MAX_ZOOM = 12.0;
+var pinchStartDist = null, pinchStartZ = null;
+
+function pinchDist(touches) {
+    var dx = touches[0].clientX - touches[1].clientX;
+    var dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+}
+
 function setupInteraction() {
     var canvas = renderer.domElement;
     var startX, startY;
@@ -518,27 +530,51 @@ function setupInteraction() {
         } catch(e) {}
     }
 
+    // Mouse drag + wheel zoom
     canvas.addEventListener('mousedown', function(e) {
         startX = e.clientX; startY = e.clientY;
         onPointerDown(e.clientX, e.clientY);
     });
     canvas.addEventListener('mousemove', function(e) { onPointerMove(e.clientX, e.clientY); });
-    canvas.addEventListener('mouseup', function(e) { onPointerUp(e.clientX, e.clientY, true); });
+    canvas.addEventListener('mouseup',   function(e) { onPointerUp(e.clientX, e.clientY, true); });
+    canvas.addEventListener('wheel', function(e) {
+        e.preventDefault();
+        camera.position.z = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, camera.position.z + e.deltaY * 0.01));
+    }, { passive: false });
 
+    // Touch drag + pinch zoom
     canvas.addEventListener('touchstart', function(e) {
         e.preventDefault();
+        if (e.touches.length === 2) {
+            pinchStartDist = pinchDist(e.touches);
+            pinchStartZ = camera.position.z;
+            isDragging = false;
+            return;
+        }
         var t0 = e.touches[0];
         startX = t0.clientX; startY = t0.clientY;
         onPointerDown(t0.clientX, t0.clientY);
     }, { passive: false });
+
     canvas.addEventListener('touchmove', function(e) {
         e.preventDefault();
-        onPointerMove(e.touches[0].clientX, e.touches[0].clientY);
+        if (e.touches.length === 2 && pinchStartDist !== null) {
+            var scale = pinchStartDist / pinchDist(e.touches);
+            camera.position.z = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, pinchStartZ * scale));
+            return;
+        }
+        if (e.touches.length === 1) {
+            onPointerMove(e.touches[0].clientX, e.touches[0].clientY);
+        }
     }, { passive: false });
+
     canvas.addEventListener('touchend', function(e) {
         e.preventDefault();
-        var t0 = e.changedTouches[0];
-        onPointerUp(t0.clientX, t0.clientY, true);
+        pinchStartDist = null;
+        if (e.touches.length === 0) {
+            var t0 = e.changedTouches[0];
+            onPointerUp(t0.clientX, t0.clientY, true);
+        }
     }, { passive: false });
 
     window.addEventListener('resize', function() {
