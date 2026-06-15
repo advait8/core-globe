@@ -11,6 +11,8 @@ data class GlobeConfig(
     val showGrid: Boolean           = true,
     val showAtmosphere: Boolean     = true,
     val showStars: Boolean          = true,
+    val showBorders: Boolean        = true,
+    val borderColor: String         = "#1E3A6E",
     val autoRotate: Boolean         = true,
     val autoRotateSpeed: Float      = 0.0022f,
     val tiltRadians: Float          = (Math.PI / 4).toFloat(),

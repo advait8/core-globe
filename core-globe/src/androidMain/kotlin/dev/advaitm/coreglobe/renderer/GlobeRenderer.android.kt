@@ -30,14 +30,17 @@ actual class GlobeRenderer(private val context: Context) {
                     }
                 }
                 override fun shouldInterceptRequest(view: WebView, url: String): WebResourceResponse? {
-                    if (url == "https://localhost/three.min.js") {
-                        return WebResourceResponse(
-                            "application/javascript",
-                            "UTF-8",
+                    return when (url) {
+                        "https://localhost/three.min.js" -> WebResourceResponse(
+                            "application/javascript", "UTF-8",
                             context.assets.open("three.min.js")
                         )
+                        "https://localhost/countries.geojson" -> WebResourceResponse(
+                            "application/json", "UTF-8",
+                            context.assets.open("countries.geojson")
+                        )
+                        else -> super.shouldInterceptRequest(view, url)
                     }
-                    return super.shouldInterceptRequest(view, url)
                 }
             }
             setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
@@ -227,6 +230,13 @@ function init() {
         buildStars();
     }
 
+    // Country borders (async fetch from assets)
+    if (${config.showBorders}) {
+        fetch('countries.geojson')
+            .then(function(r) { return r.json(); })
+            .then(function(data) { buildBorders(data); });
+    }
+
     setupInteraction();
     animate();
 }
@@ -278,6 +288,50 @@ function buildStars() {
         opacity: 0.75
     });
     scene.add(new THREE.Points(starGeo, starMat));
+}
+
+function buildBorders(geojson) {
+    var mat = new THREE.LineBasicMaterial({
+        color: hexToInt('${config.borderColor}'),
+        transparent: true,
+        opacity: 0.5
+    });
+    geojson.features.forEach(function(feature) {
+        var geom = feature.geometry;
+        if (!geom) return;
+        var polygons = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+        polygons.forEach(function(polygon) {
+            polygon.forEach(function(ring) {
+                var pts = ring.map(function(c) { return latLngTo3D(c[1], c[0], 1.002); });
+                var geo = new THREE.BufferGeometry().setFromPoints(pts);
+                world.add(new THREE.Line(geo, mat));
+            });
+        });
+    });
+}
+
+function makeTextSprite(text, color) {
+    var canvas = document.createElement('canvas');
+    canvas.width = 512;
+    canvas.height = 80;
+    var ctx = canvas.getContext('2d');
+    ctx.font = 'bold 32px Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    var metrics = ctx.measureText(text);
+    var pw = metrics.width + 24, ph = 44;
+    var px = 256 - pw / 2, py = 18;
+    ctx.fillStyle = 'rgba(2,11,24,0.72)';
+    ctx.beginPath();
+    ctx.roundRect(px, py, pw, ph, 6);
+    ctx.fill();
+    ctx.fillStyle = color || '#ffffff';
+    ctx.fillText(text, 256, 40);
+    var tex = new THREE.CanvasTexture(canvas);
+    var mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+    var sprite = new THREE.Sprite(mat);
+    sprite.scale.set(0.32, 0.05, 1.0);
+    return sprite;
 }
 
 function addMarker(m) {
@@ -341,13 +395,27 @@ function addMarker(m) {
 
     group.userData.markerId = m.id;
     group.userData.dot = dot;
+
+    if (m.label) {
+        var labelColor = m.style === 'current' ? '${config.currentDotColor}' : '${config.destinationDotColor}';
+        var sprite = makeTextSprite(m.label, labelColor);
+        var labelPos = latLngTo3D(m.lat, m.lng, 1.09);
+        sprite.position.copy(labelPos);
+        world.add(sprite);
+        group.userData.labelSprite = sprite;
+    }
+
     world.add(group);
     markers[m.id] = group;
 }
 
 function removeMarker(id) {
     var g = markers[id];
-    if (g) { world.remove(g); delete markers[id]; }
+    if (g) {
+        if (g.userData.labelSprite) world.remove(g.userData.labelSprite);
+        world.remove(g);
+        delete markers[id];
+    }
 }
 
 function addArc(a) {

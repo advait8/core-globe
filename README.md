@@ -13,13 +13,15 @@ A standalone Kotlin Multiplatform library that renders an interactive 3D globe i
 ## Features
 
 - Auto-rotating dark navy globe with lat/lon grid and star field
+- **Country borders** — 177-country outlines from Natural Earth 110m data
 - **Current location** marker — pulsing blue beacon with animated rings
 - **Destination** markers — amber dots
+- **City labels** — canvas-texture sprites that always face the camera
 - **Arc** support — animated great-circle flight paths between coordinates
 - Drag to rotate (touch + mouse), with rotation state fed back to Kotlin via bridge
 - Tap a marker to get a callback
-- Fully configurable colors, rotation speed, camera distance, atmosphere, grid, stars
-- Self-contained — Three.js r128 bundled in library assets, no CDN required
+- Fully configurable colors, rotation speed, camera distance, atmosphere, grid, stars, borders
+- Self-contained — Three.js r128 and country GeoJSON bundled in library assets, no CDN required
 
 ## Usage
 
@@ -56,6 +58,8 @@ GlobeView(
         showGrid             = true,
         showAtmosphere       = true,
         showStars            = true,
+        showBorders          = true,
+        borderColor          = "#1E3A6E",
         autoRotate           = true,
         autoRotateSpeed      = 0.0022f,
         cameraDistance       = 5.0f,
