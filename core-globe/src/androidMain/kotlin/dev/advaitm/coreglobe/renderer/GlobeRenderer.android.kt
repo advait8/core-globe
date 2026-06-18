@@ -20,6 +20,8 @@ actual class GlobeRenderer(private val context: Context) {
         webView = WebView(context).apply {
             settings.javaScriptEnabled = true
             settings.domStorageEnabled = true
+            settings.setSupportZoom(false)
+            settings.builtInZoomControls = false
             addJavascriptInterface(GlobeBridge { json -> onBridgeEvent?.invoke(json) }, "Android")
             webViewClient = object : WebViewClient() {
                 override fun onPageFinished(view: WebView, url: String) {
