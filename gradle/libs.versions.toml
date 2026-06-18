@@ -5,6 +5,7 @@ compose = "1.7.6"
 composeMaterial3 = "1.3.1"
 coroutines = "1.9.0"
 serialization = "1.7.3"
+vanniktechMavenPublish = "0.29.0"
 
 [libraries]
 compose-ui = { group = "androidx.compose.ui", name = "ui", version.ref = "compose" }
@@ -24,3 +25,4 @@ kotlin-multiplatform = { id = "org.jetbrains.kotlin.multiplatform", version.ref 
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-serialization = { id = "org.jetbrains.kotlin.plugin.serialization", version.ref = "kotlin" }
 compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
+vanniktech-maven-publish = { id = "com.vanniktech.maven.publish", version.ref = "vanniktechMavenPublish" }
