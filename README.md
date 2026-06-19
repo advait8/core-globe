@@ -69,7 +69,30 @@ GlobeView(
 
 ## Setup
 
-Add the module to your project:
+### Maven Central (recommended)
+
+Add the dependency to your app module:
+
+```kotlin
+// app/build.gradle.kts
+dependencies {
+    implementation("io.github.advait8:core-globe-android:0.1.0")
+}
+```
+
+Make sure `mavenCentral()` is in your repository list (it is by default in new projects):
+
+```kotlin
+// settings.gradle.kts
+dependencyResolutionManagement {
+    repositories {
+        mavenCentral()
+        google()
+    }
+}
+```
+
+### Local module
 
 ```kotlin
 // settings.gradle.kts
