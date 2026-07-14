@@ -15,7 +15,9 @@ fun GlobeView(
     markers: List<GlobeMarker> = emptyList(),
     arcs: List<GlobeArc> = emptyList(),
     config: GlobeConfig = GlobeConfig(),
+    flyTo: Coordinates? = null,
     onMarkerTapped: (GlobeMarker) -> Unit = {},
+    onArcAnimationComplete: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val viewModel = remember { GlobeViewModel() }
@@ -27,6 +29,7 @@ fun GlobeView(
     LaunchedEffect(arcs)    { viewModel.setArcs(arcs) }
     LaunchedEffect(config)  { viewModel.updateConfig(config) }
     LaunchedEffect(state)   { renderer.updateState(state) }
+    LaunchedEffect(flyTo)   { flyTo?.let { renderer.flyTo(it) } }
 
     LaunchedEffect(renderer) {
         renderer.onBridgeEvent = { json ->
@@ -42,6 +45,7 @@ fun GlobeView(
                         val marker = state.markers.find { it.id == markerId }
                         marker?.let { onMarkerTapped(it) }
                     }
+                    "arcAnimationComplete" -> onArcAnimationComplete(obj.optString("arcId"))
                 }
             } catch (_: Exception) {}
         }

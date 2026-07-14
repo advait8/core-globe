@@ -65,9 +65,17 @@ actual class GlobeRenderer(private val context: Context) {
         evaluateJs(stateToJson(state))
     }
 
+    fun flyTo(target: Coordinates) {
+        evaluateScript("if(typeof flyTo==='function')flyTo(${target.lat}, ${target.lng})")
+    }
+
     private fun evaluateJs(json: String) {
+        evaluateScript("if(typeof updateGlobe==='function')updateGlobe($json)")
+    }
+
+    private fun evaluateScript(script: String) {
         webView.post {
-            webView.evaluateJavascript("if(typeof updateGlobe==='function')updateGlobe($json)", null)
+            webView.evaluateJavascript(script, null)
         }
     }
 
@@ -117,6 +125,16 @@ actual class GlobeRenderer(private val context: Context) {
                 put("toLat", arc.to.lat)
                 put("toLng", arc.to.lng)
                 put("progress", arc.animationProgress)
+                put("style", when (arc.style) {
+                    is ArcStyle.Flight -> "flight"
+                    is ArcStyle.Dashed -> "dashed"
+                    is ArcStyle.Trail  -> "trail"
+                    is ArcStyle.Custom -> "custom"
+                })
+                if (arc.style is ArcStyle.Custom) {
+                    put("colorHex", arc.style.colorHex)
+                    put("width", arc.style.width)
+                }
             })
         }
         obj.put("arcs", arcsArr)
@@ -162,6 +180,17 @@ var showGrid = ${config.showGrid};
 var isDragging = false;
 var previousMouseX = 0, previousMouseY = 0;
 var t = 0;
+
+var ARC_TUBE_RADIUS = 0.005;
+var ARC_ANIM_DURATION = 1.5;
+var FLY_TO_DURATION = 1.5;
+var FRAME_DT = 0.016;
+var arcAnimations = {};
+var flyToAnim = null;
+
+function easeInOut(x) {
+    return x < 0.5 ? 2 * x * x : -1 + (4 - 2 * x) * x;
+}
 
 function latLngTo3D(lat, lng, r) {
     r = r || 1;
@@ -423,18 +452,49 @@ function removeMarker(id) {
     }
 }
 
-function addArc(a) {
+function arcCurvePoints(a) {
     var A = latLngTo3D(a.fromLat, a.fromLng, 1.0);
     var B = latLngTo3D(a.toLat,   a.toLng,   1.0);
     var ctrl = A.clone().add(B).multiplyScalar(0.5).normalize().multiplyScalar(1.48);
     var curve = new THREE.QuadraticBezierCurve3(A, ctrl, B);
-    var points = curve.getPoints(100);
-    var catmull = new THREE.CatmullRomCurve3(points);
-    var tubeGeo = new THREE.TubeGeometry(catmull, 100, 0.005, 6, false);
-    var tubeMat = new THREE.MeshBasicMaterial({
+    return curve.getPoints(100);
+}
+
+function buildDashedArc(a) {
+    var points = arcCurvePoints(a);
+    var geometry = new THREE.BufferGeometry().setFromPoints(points);
+    var material = new THREE.LineDashedMaterial({
         color: hexToInt('${config.arcColor}'),
+        dashSize: 0.06,
+        gapSize: 0.04,
         transparent: true,
-        opacity: 0.75
+        opacity: 0.45
+    });
+    var line = new THREE.Line(geometry, material);
+    line.computeLineDistances();
+    return line;
+}
+
+function buildTubeArc(a, style) {
+    var points = arcCurvePoints(a);
+    var catmull = new THREE.CatmullRomCurve3(points);
+
+    var colorHex = '${config.arcColor}';
+    var widthScale = 1.0;
+    var opacity = 0.75;
+    if (style === 'trail') {
+        opacity = 0.28;
+        widthScale = 0.8;
+    } else if (style === 'custom') {
+        colorHex = a.colorHex || colorHex;
+        widthScale = (a.width !== undefined) ? a.width : 1.0;
+    }
+
+    var tubeGeo = new THREE.TubeGeometry(catmull, 100, ARC_TUBE_RADIUS * widthScale, 6, false);
+    var tubeMat = new THREE.MeshBasicMaterial({
+        color: hexToInt(colorHex),
+        transparent: true,
+        opacity: opacity
     });
     var tube = new THREE.Mesh(tubeGeo, tubeMat);
 
@@ -444,14 +504,30 @@ function addArc(a) {
         tubeGeo.setDrawRange(0, Math.floor(total * progress));
     }
 
-    tube.userData.arcId = a.id;
-    world.add(tube);
-    arcs[a.id] = tube;
+    return tube;
+}
+
+function addArc(a) {
+    var style = a.style || 'flight';
+    var object = (style === 'dashed') ? buildDashedArc(a) : buildTubeArc(a, style);
+
+    object.userData.arcId = a.id;
+    object.userData.style = style;
+    world.add(object);
+    arcs[a.id] = object;
+
+    if (style === 'flight') {
+        var progress = (a.progress !== undefined) ? a.progress : 1.0;
+        if (progress < 1.0) {
+            arcAnimations[a.id] = { start: progress, elapsed: 0 };
+        }
+    }
 }
 
 function removeArc(id) {
     var mesh = arcs[id];
     if (mesh) { world.remove(mesh); delete arcs[id]; }
+    delete arcAnimations[id];
 }
 
 function updateGlobe(json) {
@@ -480,7 +556,12 @@ function updateGlobe(json) {
             if (!incomingArcs[id]) removeArc(id);
         });
         data.arcs.forEach(function(a) {
-            if (!arcs[a.id]) addArc(a);
+            var existing = arcs[a.id];
+            var styleChanged = existing && existing.userData.style !== (a.style || 'flight');
+            if (!existing || styleChanged) {
+                if (existing) removeArc(a.id);
+                addArc(a);
+            }
         });
     }
 
@@ -488,6 +569,22 @@ function updateGlobe(json) {
         if (data.config.autoRotate !== undefined) autoRotate = data.config.autoRotate;
         if (data.config.autoRotateSpeed !== undefined) autoRotateSpeed = data.config.autoRotateSpeed;
     }
+}
+
+function flyTo(lat, lng) {
+    var targetY = -THREE.MathUtils.degToRad(lng);
+    var startY = world.rotation.y % (2 * Math.PI);
+    var diff = targetY - startY;
+    if (diff > Math.PI)  diff -= 2 * Math.PI;
+    if (diff < -Math.PI) diff += 2 * Math.PI;
+
+    flyToAnim = {
+        startY: startY,
+        targetY: startY + diff,
+        startX: world.rotation.x,
+        targetX: Math.PI / 4 - THREE.MathUtils.degToRad(lat) * 0.15,
+        elapsed: 0
+    };
 }
 
 var MIN_ZOOM = 2.5, MAX_ZOOM = 12.0;
@@ -618,9 +715,39 @@ function animate() {
     requestAnimationFrame(animate);
     t += 0.016;
 
-    if (autoRotate && !isDragging) {
+    if (flyToAnim) {
+        flyToAnim.elapsed += FRAME_DT;
+        var flyT = easeInOut(Math.min(1.0, flyToAnim.elapsed / FLY_TO_DURATION));
+        world.rotation.y = THREE.MathUtils.lerp(flyToAnim.startY, flyToAnim.targetY, flyT);
+        world.rotation.x = THREE.MathUtils.lerp(flyToAnim.startX, flyToAnim.targetX, flyT);
+        if (flyToAnim.elapsed >= FLY_TO_DURATION) {
+            flyToAnim = null;
+            try {
+                Android.onEvent(JSON.stringify({
+                    event: 'dragEnd',
+                    rotationX: world.rotation.x,
+                    rotationY: world.rotation.y
+                }));
+            } catch(e) {}
+        }
+    } else if (autoRotate && !isDragging) {
         world.rotation.y += autoRotateSpeed;
     }
+
+    Object.keys(arcAnimations).forEach(function(id) {
+        var anim = arcAnimations[id];
+        var mesh = arcs[id];
+        if (!mesh || !mesh.geometry.index) { delete arcAnimations[id]; return; }
+        anim.elapsed += FRAME_DT;
+        var arcT = easeInOut(Math.min(1.0, anim.elapsed / ARC_ANIM_DURATION));
+        var progress = anim.start + (1.0 - anim.start) * arcT;
+        var total = mesh.geometry.index.count;
+        mesh.geometry.setDrawRange(0, Math.floor(total * progress));
+        if (anim.elapsed >= ARC_ANIM_DURATION) {
+            delete arcAnimations[id];
+            try { Android.onEvent(JSON.stringify({ event: 'arcAnimationComplete', arcId: id })); } catch(e) {}
+        }
+    });
 
     Object.keys(markers).forEach(function(id) {
         var g = markers[id];

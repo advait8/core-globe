@@ -6,29 +6,72 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import dev.advaitm.coreglobe.api.ArcStyle
+import dev.advaitm.coreglobe.api.Coordinates
+import dev.advaitm.coreglobe.api.GlobeArc
 import dev.advaitm.coreglobe.api.GlobeMarker
 import dev.advaitm.coreglobe.api.MarkerStyle
 import dev.advaitm.coreglobe.ui.GlobeView
+import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
 
+    private val sfo = Coordinates(37.77, -122.41)
+    private val tyo = Coordinates(35.68, 139.69)
+    private val hnl = Coordinates(21.30, -157.85)
+    private val rek = Coordinates(64.13, -21.94)
+    private val scl = Coordinates(-33.45, -70.66)
+
     private val markers = listOf(
-        GlobeMarker(id = "sfo",        lat = 37.77,   lng = -122.41, style = MarkerStyle.Current,     label = "San Francisco"),
-        GlobeMarker(id = "tyo",        lat = 35.68,   lng =  139.69, style = MarkerStyle.Destination, label = "Tokyo"),
-        GlobeMarker(id = "hnl",        lat = 21.30,   lng = -157.85, style = MarkerStyle.Destination, label = "Honolulu"),
-        GlobeMarker(id = "rek",        lat = 64.13,   lng =  -21.94, style = MarkerStyle.Destination, label = "Reykjavik"),
-        GlobeMarker(id = "scl",        lat = -33.45,  lng =  -70.66, style = MarkerStyle.Destination, label = "Santiago"),
+        GlobeMarker(id = "sfo", lat = sfo.lat, lng = sfo.lng, style = MarkerStyle.Current,     label = "San Francisco"),
+        GlobeMarker(id = "tyo", lat = tyo.lat, lng = tyo.lng, style = MarkerStyle.Destination, label = "Tokyo"),
+        GlobeMarker(id = "hnl", lat = hnl.lat, lng = hnl.lng, style = MarkerStyle.Destination, label = "Honolulu"),
+        GlobeMarker(id = "rek", lat = rek.lat, lng = rek.lng, style = MarkerStyle.Destination, label = "Reykjavik"),
+        GlobeMarker(id = "scl", lat = scl.lat, lng = scl.lng, style = MarkerStyle.Destination, label = "Santiago"),
     )
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
+            var arcs by remember {
+                mutableStateOf(
+                    listOf(
+                        // Dashed: potential destinations from SFO
+                        GlobeArc(id = "sfo_tyo", from = sfo, to = tyo, style = ArcStyle.Dashed),
+                        GlobeArc(id = "sfo_rek", from = sfo, to = rek, style = ArcStyle.Dashed),
+                        // Trail: a previous leg (Honolulu to SFO)
+                        GlobeArc(id = "hnl_sfo_trail", from = hnl, to = sfo, style = ArcStyle.Trail),
+                    )
+                )
+            }
+            var flyToTarget by remember { mutableStateOf<Coordinates?>(null) }
+
+            LaunchedEffect(Unit) {
+                delay(2000)
+                // Flight: solid arc that draws itself in, flying to the destination
+                arcs = listOf(
+                    GlobeArc(id = "sfo_tyo", from = sfo, to = tyo, style = ArcStyle.Flight, animationProgress = 0f),
+                    GlobeArc(id = "hnl_sfo_trail", from = hnl, to = sfo, style = ArcStyle.Trail),
+                )
+                flyToTarget = tyo
+            }
+
             GlobeView(
                 markers = markers,
+                arcs = arcs,
+                flyTo = flyToTarget,
                 onMarkerTapped = { marker ->
                     Log.d("GlobeSample", "Marker tapped: ${marker.id} (${marker.label})")
+                },
+                onArcAnimationComplete = { arcId ->
+                    Log.d("GlobeSample", "Arc animation complete: $arcId")
                 },
                 modifier = Modifier.fillMaxSize()
             )
