@@ -15,6 +15,7 @@ import androidx.compose.ui.Modifier
 import dev.advaitm.coreglobe.api.ArcStyle
 import dev.advaitm.coreglobe.api.Coordinates
 import dev.advaitm.coreglobe.api.GlobeArc
+import dev.advaitm.coreglobe.api.GlobeConfig
 import dev.advaitm.coreglobe.api.GlobeMarker
 import dev.advaitm.coreglobe.api.MarkerStyle
 import dev.advaitm.coreglobe.ui.GlobeView
@@ -66,6 +67,7 @@ class MainActivity : ComponentActivity() {
             GlobeView(
                 markers = markers,
                 arcs = arcs,
+                config = GlobeConfig(showBorders = false),
                 flyTo = flyToTarget,
                 onMarkerTapped = { marker ->
                     Log.d("GlobeSample", "Marker tapped: ${marker.id} (${marker.label})")

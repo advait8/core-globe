@@ -20,7 +20,7 @@ fun GlobeView(
     onArcAnimationComplete: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
-    val viewModel = remember { GlobeViewModel() }
+    val viewModel = remember { GlobeViewModel(initialConfig = config) }
     val context = LocalContext.current
     val renderer  = remember { GlobeRenderer(context) }
     val state by viewModel.state.collectAsState()

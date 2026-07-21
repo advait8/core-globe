@@ -6,8 +6,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 
-class GlobeViewModel {
-    private val _state = MutableStateFlow(GlobeState())
+class GlobeViewModel(initialConfig: GlobeConfig = GlobeConfig()) {
+    private val _state = MutableStateFlow(GlobeState(config = initialConfig))
     val state: StateFlow<GlobeState> = _state.asStateFlow()
 
     fun setMarkers(markers: List<GlobeMarker>) {
