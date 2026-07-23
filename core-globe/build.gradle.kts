@@ -43,7 +43,7 @@ android {
 }
 
 mavenPublishing {
-    coordinates("io.github.advait8", "core-globe", "0.2.1")
+    coordinates("io.github.advait8", "core-globe", "0.2.2")
 
     publishToMavenCentral(com.vanniktech.maven.publish.SonatypeHost.CENTRAL_PORTAL)
     signAllPublications()

@@ -184,9 +184,15 @@ var t = 0;
 var ARC_TUBE_RADIUS = 0.005;
 var ARC_ANIM_DURATION = 1.5;
 var FLY_TO_DURATION = 1.5;
+var FLY_TO_ZOOM_OUT = 1.4;
 var FRAME_DT = 0.016;
 var arcAnimations = {};
 var flyToAnim = null;
+
+var DOT_RADIUS_DEFAULT = 0.026;
+var DOT_RADIUS_CURRENT = 0.034;
+var CURRENT_RING_INNER_RADIUS = 0.062;
+var CURRENT_RING_OUTER_RADIUS = 0.09;
 
 function easeInOut(x) {
     return x < 0.5 ? 2 * x * x : -1 + (4 - 2 * x) * x;
@@ -380,12 +386,12 @@ function addMarker(m) {
     var dot, innerRing, outerRing;
 
     if (m.style === 'current') {
-        var dotGeo = new THREE.SphereGeometry(0.024, 16, 16);
+        var dotGeo = new THREE.SphereGeometry(DOT_RADIUS_CURRENT, 16, 16);
         var dotMat = new THREE.MeshBasicMaterial({ color: hexToInt('${config.currentDotColor}') });
         dot = new THREE.Mesh(dotGeo, dotMat);
         group.add(dot);
 
-        var innerGeo = new THREE.SphereGeometry(0.052, 16, 16);
+        var innerGeo = new THREE.SphereGeometry(CURRENT_RING_INNER_RADIUS, 16, 16);
         var innerMat = new THREE.MeshBasicMaterial({
             color: hexToInt('${config.currentDotColor}'),
             transparent: true,
@@ -394,7 +400,7 @@ function addMarker(m) {
         innerRing = new THREE.Mesh(innerGeo, innerMat);
         group.add(innerRing);
 
-        var outerGeo = new THREE.SphereGeometry(0.075, 16, 16);
+        var outerGeo = new THREE.SphereGeometry(CURRENT_RING_OUTER_RADIUS, 16, 16);
         var outerMat = new THREE.MeshBasicMaterial({
             color: hexToInt('${config.currentDotColor}'),
             transparent: true,
@@ -407,20 +413,20 @@ function addMarker(m) {
         group.userData.innerRing = innerRing;
         group.userData.outerRing = outerRing;
     } else if (m.style === 'destination') {
-        var dotGeo = new THREE.SphereGeometry(0.017, 16, 16);
+        var dotGeo = new THREE.SphereGeometry(DOT_RADIUS_DEFAULT, 16, 16);
         var dotMat = new THREE.MeshBasicMaterial({ color: hexToInt('${config.destinationDotColor}') });
         dot = new THREE.Mesh(dotGeo, dotMat);
         group.add(dot);
         group.userData.type = 'destination';
     } else if (m.style === 'custom') {
-        var sz = (m.size || 1) * 0.017;
+        var sz = (m.size || 1) * DOT_RADIUS_DEFAULT;
         var dotGeo = new THREE.SphereGeometry(sz, 16, 16);
         var dotMat = new THREE.MeshBasicMaterial({ color: hexToInt(m.colorHex || '#ffffff') });
         dot = new THREE.Mesh(dotGeo, dotMat);
         group.add(dot);
         group.userData.type = m.pulse ? 'current' : 'default';
     } else {
-        var dotGeo = new THREE.SphereGeometry(0.017, 16, 16);
+        var dotGeo = new THREE.SphereGeometry(DOT_RADIUS_DEFAULT, 16, 16);
         var dotMat = new THREE.MeshBasicMaterial({ color: 0xffffff });
         dot = new THREE.Mesh(dotGeo, dotMat);
         group.add(dot);
@@ -583,6 +589,7 @@ function flyTo(lat, lng) {
         targetY: startY + diff,
         startX: world.rotation.x,
         targetX: Math.PI / 4 - THREE.MathUtils.degToRad(lat) * 0.15,
+        startZ: camera.position.z,
         elapsed: 0
     };
 }
@@ -720,7 +727,13 @@ function animate() {
         var flyT = easeInOut(Math.min(1.0, flyToAnim.elapsed / FLY_TO_DURATION));
         world.rotation.y = THREE.MathUtils.lerp(flyToAnim.startY, flyToAnim.targetY, flyT);
         world.rotation.x = THREE.MathUtils.lerp(flyToAnim.startX, flyToAnim.targetX, flyT);
+
+        // Pull the camera back so the arc's midpoint stays in frame mid-flight, then settle back in on arrival.
+        var pullBack = Math.sin(Math.PI * flyT) * FLY_TO_ZOOM_OUT;
+        camera.position.z = Math.min(MAX_ZOOM, flyToAnim.startZ + pullBack);
+
         if (flyToAnim.elapsed >= FLY_TO_DURATION) {
+            camera.position.z = flyToAnim.startZ;
             flyToAnim = null;
             try {
                 Android.onEvent(JSON.stringify({
@@ -749,8 +762,18 @@ function animate() {
         }
     });
 
+    world.updateMatrixWorld(true);
+    var camDir = camera.position.clone().normalize();
+
     Object.keys(markers).forEach(function(id) {
         var g = markers[id];
+
+        // Hide markers on the far side of the globe (surface normal facing away from the camera).
+        var worldNormal = g.position.clone().applyMatrix4(world.matrixWorld).normalize();
+        var facingCamera = worldNormal.dot(camDir) > 0;
+        g.visible = facingCamera;
+        if (g.userData.labelSprite) g.userData.labelSprite.visible = facingCamera;
+
         if (g.userData.type === 'current' && g.userData.innerRing && g.userData.outerRing) {
             var inner = g.userData.innerRing;
             var outer = g.userData.outerRing;
