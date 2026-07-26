@@ -67,7 +67,7 @@ class MainActivity : ComponentActivity() {
             GlobeView(
                 markers = markers,
                 arcs = arcs,
-                config = GlobeConfig(showBorders = false),
+                config = GlobeConfig(showBorders = false, showGrid = false),
                 flyTo = flyToTarget,
                 onMarkerTapped = { marker ->
                     Log.d("GlobeSample", "Marker tapped: ${marker.id} (${marker.label})")

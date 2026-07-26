@@ -41,6 +41,10 @@ actual class GlobeRenderer(private val context: Context) {
                             "application/json", "UTF-8",
                             context.assets.open("countries.geojson")
                         )
+                        "https://localhost/land.geojson" -> WebResourceResponse(
+                            "application/json", "UTF-8",
+                            context.assets.open("land.geojson")
+                        )
                         else -> super.shouldInterceptRequest(view, url)
                     }
                 }
@@ -189,6 +193,8 @@ var FRAME_DT = 0.016;
 var arcAnimations = {};
 var flyToAnim = null;
 
+var LAND_RADIUS = 1.0008;
+
 var DOT_RADIUS_DEFAULT = 0.026;
 var DOT_RADIUS_CURRENT = 0.034;
 var CURRENT_RING_INNER_RADIUS = 0.062;
@@ -270,7 +276,14 @@ function init() {
         buildStars();
     }
 
-    // Country borders (async fetch from assets)
+    // Land fill: continuous landmass shapes, no lake holes or country subdivisions.
+    if (${config.showLand}) {
+        fetch('land.geojson')
+            .then(function(r) { return r.json(); })
+            .then(function(data) { buildLand(data); });
+    }
+
+    // Country borders: separate admin-0 dataset, only fetched when shown.
     if (${config.showBorders}) {
         fetch('countries.geojson')
             .then(function(r) { return r.json(); })
@@ -328,6 +341,44 @@ function buildStars() {
         opacity: 0.75
     });
     scene.add(new THREE.Points(starGeo, starMat));
+}
+
+function buildLand(geojson) {
+    // Painted as a texture on a true sphere rather than a raised triangle mesh:
+    // flat triangles spanning a whole continent (e.g. Sahara) chord well below
+    // the globe's curved surface and z-fight with the ocean underneath. A
+    // texture has no geometry to sag, so coastlines stay clean at any size,
+    // and evenodd fill naturally cuts lake holes without touching the mesh.
+    var W = 2048, H = 1024;
+    var canvas = document.createElement('canvas');
+    canvas.width = W;
+    canvas.height = H;
+    var ctx = canvas.getContext('2d');
+    ctx.fillStyle = '${config.landColor}';
+
+    geojson.features.forEach(function(feature) {
+        var geom = feature.geometry;
+        if (!geom) return;
+        var polygons = geom.type === 'Polygon' ? [geom.coordinates] : geom.coordinates;
+        polygons.forEach(function(polygon) {
+            ctx.beginPath();
+            polygon.forEach(function(ring) {
+                ring.forEach(function(c, i) {
+                    var x = (c[0] + 180) / 360 * W;
+                    var y = (90 - c[1]) / 180 * H;
+                    if (i === 0) ctx.moveTo(x, y);
+                    else ctx.lineTo(x, y);
+                });
+                ctx.closePath();
+            });
+            ctx.fill('evenodd');
+        });
+    });
+
+    var texture = new THREE.CanvasTexture(canvas);
+    var landGeo = new THREE.SphereGeometry(LAND_RADIUS, 64, 64);
+    var landMat = new THREE.MeshBasicMaterial({ map: texture, transparent: true });
+    world.add(new THREE.Mesh(landGeo, landMat));
 }
 
 function buildBorders(geojson) {
