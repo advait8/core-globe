@@ -73,6 +73,11 @@ actual class GlobeRenderer(private val context: Context) {
         evaluateScript("if(typeof flyTo==='function')flyTo(${target.lat}, ${target.lng})")
     }
 
+    fun animateFlight(target: Coordinates, from: Coordinates? = null) {
+        val srcArgs = if (from != null) "${from.lat}, ${from.lng}" else "null, null"
+        evaluateScript("if(typeof animateFlight==='function')animateFlight($srcArgs, ${target.lat}, ${target.lng})")
+    }
+
     private fun evaluateJs(json: String) {
         evaluateScript("if(typeof updateGlobe==='function')updateGlobe($json)")
     }
@@ -189,9 +194,12 @@ var ARC_TUBE_RADIUS = 0.005;
 var ARC_ANIM_DURATION = 1.5;
 var FLY_TO_DURATION = 1.5;
 var FLY_TO_ZOOM_OUT = 1.4;
+var CAMERA_FLIGHT_ALT_END  = 1.12; // low hover altitude arriving above the destination
+var CAMERA_FLIGHT_DURATION = 6.0;
 var FRAME_DT = 0.016;
 var arcAnimations = {};
 var flyToAnim = null;
+var cameraFlightAnim = null;
 
 var LAND_RADIUS = 1.0008;
 
@@ -202,6 +210,23 @@ var CURRENT_RING_OUTER_RADIUS = 0.09;
 
 function easeInOut(x) {
     return x < 0.5 ? 2 * x * x : -1 + (4 - 2 * x) * x;
+}
+
+function easeIn(x) {
+    return x * x;
+}
+
+// Spherical-linear interpolation between two unit vectors, i.e. a point `t` of the way
+// along the great-circle arc from `a` to `b`. Used to sweep the flyover camera's view
+// direction across the globe's surface independently of its altitude, so the camera
+// visibly travels the whole path rather than just shrinking straight down onto one spot.
+function slerpDirection(a, b, t) {
+    var dot = THREE.MathUtils.clamp(a.dot(b), -1, 1);
+    var theta = Math.acos(dot) * t;
+    var relative = b.clone().addScaledVector(a, -dot);
+    if (relative.lengthSq() < 1e-10) return a.clone();
+    relative.normalize();
+    return a.clone().multiplyScalar(Math.cos(theta)).addScaledVector(relative, Math.sin(theta));
 }
 
 function latLngTo3D(lat, lng, r) {
@@ -645,6 +670,34 @@ function flyTo(lat, lng) {
     };
 }
 
+// Cinematic flyover: instead of rotating the globe under a fixed outside camera, the
+// camera itself leaves the source city and sweeps through space above the globe's surface
+// along the same great-circle path as the flight arc, descending to a low hover directly
+// above the destination, looking straight down the whole time (a top-down, satellite-
+// flyover view rather than an orbit-and-zoom view). The sweep direction and the descent
+// are animated on separate timelines (see animate()) so the camera visibly travels the
+// path for the full duration instead of the altitude drop swallowing the sideways motion.
+// Fires 'flightComplete' once the camera settles above the destination, so the caller can
+// layer a landing effect (e.g. a destination photo) on top at the right moment.
+//
+// srcLat/srcLng may be null, in which case the flyover starts from wherever the camera is
+// currently looking instead of an explicit source city.
+function animateFlight(srcLat, srcLng, lat, lng) {
+    world.updateMatrixWorld(true);
+    var startDir = (srcLat !== null && srcLng !== null)
+        ? latLngTo3D(srcLat, srcLng, 1.0).applyMatrix4(world.matrixWorld).normalize()
+        : camera.position.clone().normalize();
+
+    cameraFlightAnim = {
+        startDir: startDir,
+        startAlt: camera.position.length(),
+        dstDir: latLngTo3D(lat, lng, 1.0).applyMatrix4(world.matrixWorld).normalize(),
+        lat: lat,
+        lng: lng,
+        elapsed: 0
+    };
+}
+
 var MIN_ZOOM = 2.5, MAX_ZOOM = 12.0;
 var pinchStartDist = null, pinchStartZ = null;
 
@@ -773,7 +826,31 @@ function animate() {
     requestAnimationFrame(animate);
     t += 0.016;
 
-    if (flyToAnim) {
+    if (cameraFlightAnim) {
+        cameraFlightAnim.elapsed += FRAME_DT;
+        var flightT = Math.min(1.0, cameraFlightAnim.elapsed / CAMERA_FLIGHT_DURATION);
+
+        // Sweep the view direction across the great-circle path for the *entire* duration...
+        var dir = slerpDirection(cameraFlightAnim.startDir, cameraFlightAnim.dstDir, easeInOut(flightT));
+        // ...while the altitude drop is eased separately (stays high, then dives near the
+        // end) so the sideways travel stays visible instead of being swallowed by the zoom.
+        var alt = THREE.MathUtils.lerp(cameraFlightAnim.startAlt, CAMERA_FLIGHT_ALT_END, easeIn(flightT));
+
+        camera.position.copy(dir).multiplyScalar(alt);
+        camera.lookAt(dir); // straight down at the surface below
+
+        if (cameraFlightAnim.elapsed >= CAMERA_FLIGHT_DURATION) {
+            // Re-home the camera to its normal on-axis framing (destination centered) so
+            // drag/autoRotate/flyTo — which all assume the camera sits fixed at (0,0,z)
+            // looking down -Z — keep working correctly after this off-axis flyover.
+            world.rotation.y = -THREE.MathUtils.degToRad(cameraFlightAnim.lng);
+            world.rotation.x = Math.PI / 4 - THREE.MathUtils.degToRad(cameraFlightAnim.lat) * 0.15;
+            camera.position.set(0, 0, ${config.cameraDistance});
+            camera.rotation.set(0, 0, 0);
+            cameraFlightAnim = null;
+            try { Android.onEvent(JSON.stringify({ event: 'flightComplete' })); } catch(e) {}
+        }
+    } else if (flyToAnim) {
         flyToAnim.elapsed += FRAME_DT;
         var flyT = easeInOut(Math.min(1.0, flyToAnim.elapsed / FLY_TO_DURATION));
         world.rotation.y = THREE.MathUtils.lerp(flyToAnim.startY, flyToAnim.targetY, flyT);

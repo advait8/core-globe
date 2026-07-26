@@ -16,8 +16,11 @@ fun GlobeView(
     arcs: List<GlobeArc> = emptyList(),
     config: GlobeConfig = GlobeConfig(),
     flyTo: Coordinates? = null,
+    animateFlightTo: Coordinates? = null,
+    animateFlightFrom: Coordinates? = null,
     onMarkerTapped: (GlobeMarker) -> Unit = {},
     onArcAnimationComplete: (String) -> Unit = {},
+    onFlightComplete: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val viewModel = remember { GlobeViewModel(initialConfig = config) }
@@ -30,6 +33,18 @@ fun GlobeView(
     LaunchedEffect(config)  { viewModel.updateConfig(config) }
     LaunchedEffect(state)   { renderer.updateState(state) }
     LaunchedEffect(flyTo)   { flyTo?.let { renderer.flyTo(it) } }
+    LaunchedEffect(animateFlightTo, animateFlightFrom) {
+        animateFlightTo?.let { renderer.animateFlight(it, animateFlightFrom) }
+    }
+
+    // LaunchedEffect(renderer) below installs onBridgeEvent exactly once (renderer is stable
+    // for the composable's lifetime), so the callback closure would otherwise freeze on
+    // whichever onMarkerTapped/onArcAnimationComplete/onFlightComplete instance existed at
+    // that first composition. rememberUpdatedState keeps the installed handler reading the
+    // latest lambda on every invocation without needing to reinstall it.
+    val currentOnMarkerTapped by rememberUpdatedState(onMarkerTapped)
+    val currentOnArcAnimationComplete by rememberUpdatedState(onArcAnimationComplete)
+    val currentOnFlightComplete by rememberUpdatedState(onFlightComplete)
 
     LaunchedEffect(renderer) {
         renderer.onBridgeEvent = { json ->
@@ -43,9 +58,10 @@ fun GlobeView(
                     "markerTapped" -> {
                         val markerId = obj.optString("markerId")
                         val marker = state.markers.find { it.id == markerId }
-                        marker?.let { onMarkerTapped(it) }
+                        marker?.let { currentOnMarkerTapped(it) }
                     }
-                    "arcAnimationComplete" -> onArcAnimationComplete(obj.optString("arcId"))
+                    "arcAnimationComplete" -> currentOnArcAnimationComplete(obj.optString("arcId"))
+                    "flightComplete" -> currentOnFlightComplete()
                 }
             } catch (_: Exception) {}
         }
