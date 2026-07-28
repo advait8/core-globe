@@ -2,6 +2,7 @@
 
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.advait8/core-globe-android)](https://central.sonatype.com/artifact/io.github.advait8/core-globe-android)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Featured in Android Weekly](https://androidweekly.net/issues/issue-737/badge)](https://androidweekly.net/issues/issue-737)
 
 A standalone Kotlin Multiplatform library that renders an interactive 3D globe inside a WebView using Three.js. Exposes a single `GlobeView` composable that any Android app can drop in.
 
