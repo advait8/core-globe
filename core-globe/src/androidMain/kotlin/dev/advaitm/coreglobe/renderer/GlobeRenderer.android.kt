@@ -15,6 +15,8 @@ actual class GlobeRenderer(private val context: Context) {
     var onBridgeEvent: ((String) -> Unit)? = null
     private var isPageReady = false
     private var pendingState: GlobeState? = null
+    private var pendingFlyTo: Coordinates? = null
+    private var pendingAnimateFlight: Pair<Coordinates, Coordinates?>? = null
 
     actual fun initialize(state: GlobeState): Any {
         webView = WebView(context).apply {
@@ -29,6 +31,16 @@ actual class GlobeRenderer(private val context: Context) {
                     pendingState?.let { s ->
                         pendingState = null
                         evaluateJs(stateToJson(s))
+                    }
+                    // flyTo/animateFlight below re-check isPageReady (now true), so calling
+                    // them here fires the real JS rather than re-queuing.
+                    pendingFlyTo?.let { target ->
+                        pendingFlyTo = null
+                        flyTo(target)
+                    }
+                    pendingAnimateFlight?.let { (target, from) ->
+                        pendingAnimateFlight = null
+                        animateFlight(target, from)
                     }
                 }
                 override fun shouldInterceptRequest(view: WebView, url: String): WebResourceResponse? {
@@ -69,11 +81,26 @@ actual class GlobeRenderer(private val context: Context) {
         evaluateJs(stateToJson(state))
     }
 
+    // Like updateState, these can be called (e.g. from a Composable's LaunchedEffect) before
+    // the WebView has finished loading its JS — most commonly right after the view is torn
+    // down and recreated by a config change mid-flight, while the caller's target/source
+    // coordinates are unchanged and so never re-fire on their own. Without queuing, the JS
+    // side's own `typeof x === 'function'` guard silently drops the call with no retry, and
+    // since the caller has nothing left to trigger a resend, the flight never starts and its
+    // completion callback never fires.
     fun flyTo(target: Coordinates) {
+        if (!isPageReady) {
+            pendingFlyTo = target
+            return
+        }
         evaluateScript("if(typeof flyTo==='function')flyTo(${target.lat}, ${target.lng})")
     }
 
     fun animateFlight(target: Coordinates, from: Coordinates? = null) {
+        if (!isPageReady) {
+            pendingAnimateFlight = target to from
+            return
+        }
         val srcArgs = if (from != null) "${from.lat}, ${from.lng}" else "null, null"
         evaluateScript("if(typeof animateFlight==='function')animateFlight($srcArgs, ${target.lat}, ${target.lng})")
     }
