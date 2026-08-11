@@ -2,6 +2,15 @@
   "name": "core-globe",
   "version": "0.1.0",
   "description": "Interactive 3D globe for the web — markers, arcs, flyTo, cinematic camera flyovers. Built on Three.js. Same renderer as the core-globe Android/KMM library.",
+  "license": "MIT",
+  "author": "Advait Mahashabde <advait.8.m@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/advait8/core-globe.git",
+    "directory": "npm"
+  },
+  "homepage": "https://github.com/advait8/core-globe#readme",
+  "keywords": ["globe", "three.js", "webgl", "3d", "map", "visualization"],
   "type": "module",
   "main": "./dist/core-globe.umd.js",
   "module": "./dist/core-globe.es.js",

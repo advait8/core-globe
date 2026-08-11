@@ -1,10 +1,13 @@
 # core-globe
 
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.advait8/core-globe)](https://central.sonatype.com/artifact/io.github.advait8/core-globe)
+[![npm](https://img.shields.io/npm/v/core-globe)](https://www.npmjs.com/package/core-globe)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Featured in Android Weekly](https://androidweekly.net/issues/issue-737/badge)](https://androidweekly.net/issues/issue-737)
 
 A standalone Kotlin Multiplatform library that renders an interactive 3D globe inside a WebView using Three.js. Exposes a single `GlobeView` composable that any Android app can drop in.
+
+The same renderer is also published for the web as [`core-globe` on npm](https://www.npmjs.com/package/core-globe) — see `npm/README.md`.
 
 ## Screenshots
 
@@ -162,4 +165,4 @@ Add internet permission if loading anything remotely, and hardware acceleration 
 - Give `MarkerStyle.Visited` a distinct look in the renderer (currently falls back to `Default`)
 - Wire up `GlobeConfig.tiltRadians` (currently a no-op)
 - Cluster markers at high zoom-out
-- Standalone npm package for web use (Three.js renderer extracted from the WebView asset) — see `extract-npm-package-prompt.md`
+- `onCountryClick` for the npm package — border lines aren't tagged with ISO2 or hit-testable yet (Android has the same gap)
