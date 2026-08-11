@@ -17,6 +17,12 @@ The same renderer is also published for the web as [`core-globe` on npm](https:/
   <img src="screenshots/globe_2.png" width="270" alt="Globe auto-rotating showing destination markers"/>
 </p>
 
+**Web (npm package):**
+
+<p align="center">
+  <img src="screenshots/globe_web.png" width="480" alt="Globe rendered in the browser via the core-globe npm package, showing a flight arc arriving at Tokyo and a Sydney destination marker"/>
+</p>
+
 ## Features
 
 - Auto-rotating dark navy globe with lat/lon grid and star field
