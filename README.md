@@ -1,7 +1,7 @@
 # core-globe
 
 [![Maven Central](https://img.shields.io/maven-central/v/io.github.advait8/core-globe)](https://central.sonatype.com/artifact/io.github.advait8/core-globe)
-[![npm](https://img.shields.io/npm/v/core-globe)](https://www.npmjs.com/package/core-globe)
+[![npm](https://img.shields.io/npm/v/core-globe)](https://www.npmjs.com/package/core-globe?activeTab=readme)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Featured in Android Weekly](https://androidweekly.net/issues/issue-737/badge)](https://androidweekly.net/issues/issue-737)
 
