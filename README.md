@@ -1,6 +1,6 @@
 # core-globe
 
-[![Maven Central](https://img.shields.io/maven-central/v/io.github.advait8/core-globe-android)](https://central.sonatype.com/artifact/io.github.advait8/core-globe-android)
+[![Maven Central](https://img.shields.io/maven-central/v/io.github.advait8/core-globe)](https://central.sonatype.com/artifact/io.github.advait8/core-globe)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Featured in Android Weekly](https://androidweekly.net/issues/issue-737/badge)](https://androidweekly.net/issues/issue-737)
 
@@ -17,15 +17,22 @@ A standalone Kotlin Multiplatform library that renders an interactive 3D globe i
 ## Features
 
 - Auto-rotating dark navy globe with lat/lon grid and star field
+- **Land fill** — continental landmasses painted from Natural Earth land GeoJSON as a sphere texture (no raised-mesh z-fighting, no lake holes)
 - **Country borders** — 177-country outlines from Natural Earth 110m data
-- **Current location** marker — pulsing blue beacon with animated rings
-- **Destination** markers — amber dots
+- **Marker styles** — `Current` (pulsing blue beacon with animated rings), `Destination` (amber dot), `Custom` (per-marker color/size/pulse), `Default`, `Visited`
 - **City labels** — canvas-texture sprites that always face the camera
-- **Arc** support — animated great-circle flight paths between coordinates
+- **Arc styles** — `Flight` (draws itself in over ~1.5s), `Dashed` (potential destinations), `Trail` (dim, fully drawn — past legs), `Custom` (color/width)
+- **`flyTo(Coordinates)`** — animated camera rotation to a target
+- **`animateFlight(target, from?)`** — cinematic camera flyover: the camera itself sweeps above the globe's surface along the source→destination great-circle path and descends to a low hover over the destination, firing `onFlightComplete` on arrival
 - Drag to rotate (touch + mouse), with rotation state fed back to Kotlin via bridge
+- Pinch-to-zoom (touch) and mouse-wheel zoom
 - Tap a marker to get a callback
-- Fully configurable colors, rotation speed, camera distance, atmosphere, grid, stars, borders
-- Self-contained — Three.js r128 and country GeoJSON bundled in library assets, no CDN required
+- Fully configurable colors, rotation speed, camera distance, atmosphere, grid, stars, land, borders
+- Self-contained — Three.js r128 and land/country GeoJSON bundled in library assets, no CDN required
+
+**Known gaps:**
+- `MarkerStyle.Visited` is accepted by the API but the WebView renderer doesn't yet give it a distinct look — it currently renders identically to `Default`.
+- `GlobeConfig.tiltRadians` is defined but not wired up in the renderer — the globe's tilt is hardcoded to 45° regardless of this value.
 
 ## Usage
 
@@ -43,7 +50,25 @@ GlobeView(
         )
     ),
     onMarkerTapped = { marker -> Log.d("Globe", "tapped: ${marker.id}") },
+    onArcAnimationComplete = { arcId -> Log.d("Globe", "arc done: $arcId") },
     modifier = Modifier.fillMaxSize()
+)
+```
+
+### Camera flights
+
+```kotlin
+// Rotate the globe under a fixed camera toward a target city
+GlobeView(flyTo = Coordinates(35.68, 139.69), /* ... */)
+
+// Cinematic flyover: the camera itself travels the great-circle path and
+// descends to a low hover above the destination, then fires onFlightComplete
+// (e.g. to fade in a landing photo).
+GlobeView(
+    animateFlightTo = Coordinates(35.68, 139.69),
+    animateFlightFrom = Coordinates(37.77, -122.41), // omit to start from the current camera view
+    onFlightComplete = { /* landing overlay */ },
+    /* ... */
 )
 ```
 
@@ -62,11 +87,14 @@ GlobeView(
         showGrid             = true,
         showAtmosphere       = true,
         showStars            = true,
+        showLand             = true,
+        landColor            = "#C8B99A",
         showBorders          = true,
-        borderColor          = "#1E3A6E",
+        borderColor          = "#8B7355",
         autoRotate           = true,
         autoRotateSpeed      = 0.0022f,
         cameraDistance       = 5.0f,
+        // tiltRadians is defined but currently has no effect — see Known gaps above.
     )
 )
 ```
@@ -80,7 +108,7 @@ Add the dependency to your app module:
 ```kotlin
 // app/build.gradle.kts
 dependencies {
-    implementation("io.github.advait8:core-globe-android:0.1.0")
+    implementation("io.github.advait8:core-globe:0.2.6")
 }
 ```
 
@@ -123,14 +151,15 @@ Add internet permission if loading anything remotely, and hardware acceleration 
 | Layer | Detail |
 |---|---|
 | Language | Kotlin 2.1.0 · KMP |
-| Android | minSdk 24 · targetSdk 35 |
+| Android | minSdk 24 · compileSdk/targetSdk 35 |
 | Renderer | Three.js r128 (bundled in assets) |
 | Bridge | `@JavascriptInterface` + `evaluateJavascript` |
 | UI | Jetpack Compose · `AndroidView` |
 
-## V2 Roadmap
+## Roadmap
 
-- `flyTo(Coordinates)` — animated camera rotation to a target
-- iOS actual (`WKWebView`) — `expect/actual` skeleton already in place
-- Arc `animationProgress` — animated draw-on effect
+- iOS actual (`WKWebView`) — not started; only `commonMain`/`androidMain` source sets exist today
+- Give `MarkerStyle.Visited` a distinct look in the renderer (currently falls back to `Default`)
+- Wire up `GlobeConfig.tiltRadians` (currently a no-op)
 - Cluster markers at high zoom-out
+- Standalone npm package for web use (Three.js renderer extracted from the WebView asset) — see `extract-npm-package-prompt.md`

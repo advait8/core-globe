@@ -415,13 +415,24 @@ function buildLand(geojson) {
         polygons.forEach(function(polygon) {
             ctx.beginPath();
             polygon.forEach(function(ring) {
-                ring.forEach(function(c, i) {
+                // A ring can cross the antimeridian (e.g. Antarctica's closing edge runs
+                // lng 180 -> -180 along lat -90). Connecting those two points directly draws
+                // a spurious straight line across nearly the whole canvas width. Starting a
+                // new subpath at the jump instead avoids drawing that line; canvas fill()
+                // auto-closes each open subpath, so no explicit closePath() is needed here.
+                var prevLng = null;
+                ring.forEach(function(c) {
                     var x = (c[0] + 180) / 360 * W;
                     var y = (90 - c[1]) / 180 * H;
-                    if (i === 0) ctx.moveTo(x, y);
-                    else ctx.lineTo(x, y);
+                    if (prevLng !== null && Math.abs(c[0] - prevLng) > 180) {
+                        ctx.moveTo(x, y);
+                    } else if (prevLng === null) {
+                        ctx.moveTo(x, y);
+                    } else {
+                        ctx.lineTo(x, y);
+                    }
+                    prevLng = c[0];
                 });
-                ctx.closePath();
             });
             ctx.fill('evenodd');
         });

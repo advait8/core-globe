@@ -5,3 +5,5 @@ local.properties
 .idea/
 captures/
 .DS_Store
+npm/node_modules/
+npm/dist/

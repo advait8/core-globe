@@ -1,0 +1,33 @@
+{
+  "name": "core-globe",
+  "version": "0.1.0",
+  "description": "Interactive 3D globe for the web — markers, arcs, flyTo, cinematic camera flyovers. Built on Three.js. Same renderer as the core-globe Android/KMM library.",
+  "type": "module",
+  "main": "./dist/core-globe.umd.js",
+  "module": "./dist/core-globe.es.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/core-globe.es.js",
+      "require": "./dist/core-globe.umd.js"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build",
+    "typecheck": "tsc --noEmit",
+    "dev": "vite"
+  },
+  "peerDependencies": {
+    "three": ">=0.150.0"
+  },
+  "devDependencies": {
+    "three": "^0.170.0",
+    "@types/three": "^0.170.0",
+    "typescript": "^5.0.0",
+    "vite": "^6.0.0",
+    "vite-plugin-dts": "^4.0.0"
+  }
+}
